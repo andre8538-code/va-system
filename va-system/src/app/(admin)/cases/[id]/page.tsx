@@ -23,10 +23,9 @@ const STATUS_CFG: Record<string, { bg: string; color: string }> = {
   "Stängd":   { bg: "#E6F4EC", color: "#2D7A4F" },
 };
 
-export default async function CasePage({ params }: { params: { id: string } }) {
-  const sb = await createClient();
-  const [{ data: caseData }, projects, contacts] = await Promise.all([
-    sb.from("cases").select("*, contacts(*), projects(id,name)").eq("id", params.id).single(),
+export default async function CasePage({ params }: { params: Promise<{ id: string }> }) {  
+const { id } = await params;
+  sb.from("cases").select("*, contacts(*), projects(id,name)").eq("id", id).single(),
     getProjects(),
     getContacts(),
   ]);
