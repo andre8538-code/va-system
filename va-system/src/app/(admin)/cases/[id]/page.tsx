@@ -23,14 +23,14 @@ const STATUS_CFG: Record<string, { bg: string; color: string }> = {
   "Stängd":   { bg: "#E6F4EC", color: "#2D7A4F" },
 };
 
-export default async function CasePage({ params }: { params: Promise<{ id: string }> }) {  
-const { id } = await params;
-  sb.from("cases").select("*, contacts(*), projects(id,name)").eq("id", id).single(),
+export default async function CasePage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const sb = await createClient();
+  const [{ data: caseData }, projects, contacts] = await Promise.all([
+    sb.from("cases").select("*, contacts(*), projects(id,name)").eq("id", id).single(),
     getProjects(),
     getContacts(),
   ]);
-  if (!caseData) notFound();
-
   const project  = caseData.projects as any;
   const contact  = caseData.contacts as any;
   const pContacts = contacts.filter(c =>
