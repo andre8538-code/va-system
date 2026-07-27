@@ -10,9 +10,8 @@ export const metadata: Metadata = { title: "Nytt ärende" };
 const PRIORITIES = ["Hög","Medium","Låg"].map(v=>({value:v,label:v}));
 const STATUSES   = ["Öppen","Pågående","Stängd"].map(v=>({value:v,label:v}));
 
-export default async function NewCasePage({ searchParams }: { searchParams: { project?: string } }) {
-  const [projects, contacts] = await Promise.all([getProjects(), getContacts()]);
-  const preProject = searchParams.project;
+export default async function NewCasePage({ searchParams }: { searchParams: Promise<{ project?: string }> }) {  
+  const { project: preProject } = await searchParams;
 
   // Contacts for the pre-selected project
   const projectContacts = preProject
