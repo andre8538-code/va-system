@@ -12,8 +12,8 @@ export const metadata: Metadata = { title: "Redigera projekt" };
 const PROJECT_TYPES  = ["VA-utredning","Besiktning","Rådgivning","Tillstånd"].map(v=>({value:v,label:v}));
 const PROJECT_STATUS = ["Förfrågan","Aktiv","Granskning","Avslutat"].map(v=>({value:v,label:v}));
 
-export default async function EditProjectPage({ params }: { params: { id: string } }) {
-  const project = await getProject(params.id);
+export default async function EditProjectPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;  const project = await getProject(id);
   if (!project) notFound();
 
   const update = updateProjectAction.bind(null, project.id);
