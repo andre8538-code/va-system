@@ -18,23 +18,24 @@ const ROLE_CFG: Record<string, { bg: string; color: string }> = {
   "Företag":         { bg: "#FCE7F3", color: "#9D174D" },
 };
 
-export default async function ContactPage({ params }: { params: { id: string } }) {
+export default async function ContactPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   const sb = await createClient();
   const [{ data: contact }, projects] = await Promise.all([
-    sb.from("contacts").select("*").eq("id", params.id).single(),
+    sb.from("contacts").select("*").eq("id", id).single(),
     getProjects(),
   ]);
   if (!contact) notFound();
 
   // Get linked projects
   const { data: linkedRows } = await sb.from("project_contacts")
-    .select("project_id").eq("contact_id", params.id);
+    .select("project_id").eq("contact_id", id);
   const linkedProjectIds = new Set(linkedRows?.map(r => r.project_id) ?? []);
   const linkedProjects = projects.filter(p => linkedProjectIds.has(p.id));
 
   // Portal access
   const { data: portalRows } = await sb.from("portal_access")
-    .select("*").eq("contact_id", params.id);
+    .select("*").eq("contact_id", id);
 
   const update = updateContactAction.bind(null, contact.id);
   const remove = deleteContactAction.bind(null, contact.id);
