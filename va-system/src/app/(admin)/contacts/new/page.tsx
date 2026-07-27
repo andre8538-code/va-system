@@ -9,10 +9,9 @@ export const metadata: Metadata = { title: "Ny kontakt" };
 
 const ROLES = ["Fastighetsägare","Entreprenör","Samfällighet","Företag"].map(v=>({value:v,label:v}));
 
-export default async function NewContactPage({ searchParams }: { searchParams: { project?: string } }) {
+export default async function NewContactPage({ searchParams }: { searchParams: Promise<{ project?: string }> }) {  
   const projects = await getProjects();
-  const fromProject = searchParams.project;
-
+  const { project: fromProject } = await searchParams;
   return (
     <div className="p-9 max-w-2xl">
       <div className="flex items-center gap-2 text-sm text-[#7A7870] mb-5">
