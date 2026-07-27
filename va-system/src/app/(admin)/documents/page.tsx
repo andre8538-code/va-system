@@ -25,8 +25,9 @@ function formatBytes(b: number) {
 export default async function DocumentsPage({
   searchParams
 }: {
-  searchParams: { project?: string; connected?: string; error?: string }
+  searchParams: Promise<{ project?: string; connected?: string; error?: string }>
 }) {
+  const { project, connected, error } = await searchParams;
   const sb = await createClient();
   const [projects, { data: setting }] = await Promise.all([
     getProjects(),
@@ -35,8 +36,7 @@ export default async function DocumentsPage({
 
   const isConnected = !!setting?.value;
   const authUrl     = getAuthUrl("documents");
-  const selProject  = searchParams.project ? projects.find(p => p.id === searchParams.project) : null;
-
+const selProject = project ? projects.find(p => p.id === project) : null;
   // Fetch OneDrive files for selected project
   let odFiles: Awaited<ReturnType<typeof listProjectFiles>> = [];
   if (isConnected && selProject) {
@@ -60,12 +60,12 @@ export default async function DocumentsPage({
         )}
       </div>
 
-      {searchParams.connected && (
+      {connected && (
         <div className="bg-[#E6F4EC] border border-[#2D7A4F]/20 rounded-xl px-4 py-3 mb-5 text-sm text-[#2D7A4F] font-medium">
           ✓ OneDrive anslutet!
         </div>
       )}
-      {searchParams.error && (
+      {error && (
         <div className="bg-[#FAE8E8] border border-[#B52A2A]/20 rounded-xl px-4 py-3 mb-5 text-sm text-[#B52A2A]">
           Kunde inte ansluta OneDrive. Försök igen.
         </div>
