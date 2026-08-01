@@ -1,4 +1,7 @@
 // src/app/(admin)/projects/[id]/grannkontroll/page.tsx
+//
+// Visar protokollet för ett projekt: lista över grannfastigheter att besöka,
+// med samma fält som pappersformuläret (dricksvattentäkt, energibrunn, underskrift).
 
 "use client";
 
@@ -28,18 +31,30 @@ type Protokoll = {
   status: string;
 };
 
-export default function GrannkontrollPage({ params }: { params: { id: string } }) {
+export default function GrannkontrollPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
   const supabase = createClient();
+  const [projectId, setProjectId] = useState<string | null>(null);
   const [protokoll, setProtokoll] = useState<Protokoll | null>(null);
   const [grannar, setGrannar] = useState<GrannFastighet[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // Packa upp params-Promise (krav i Next.js 15)
   useEffect(() => {
+    params.then((p) => setProjectId(p.id));
+  }, [params]);
+
+  useEffect(() => {
+    if (!projectId) return;
+
     async function load() {
       const { data: protokollData } = await supabase
         .from("grannkontroll_protokoll")
         .select("*")
-        .eq("project_id", params.id)
+        .eq("project_id", projectId)
         .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle();
@@ -56,9 +71,10 @@ export default function GrannkontrollPage({ params }: { params: { id: string } }
       setLoading(false);
     }
     load();
-  }, [params.id]);
+  }, [projectId]);
 
   async function uppdateraGranne(id: string, fields: Partial<GrannFastighet>) {
+    // Optimistisk uppdatering i UI
     setGrannar((prev) =>
       prev.map((g) => (g.id === id ? { ...g, ...fields } : g))
     );
@@ -74,6 +90,8 @@ export default function GrannkontrollPage({ params }: { params: { id: string } }
         <p className="text-gray-600 mb-4">
           Inget protokoll är skapat för det här projektet ännu.
         </p>
+        {/* TODO: formulär för att ange fastighetsbeteckning och anropa
+            /api/grannkontroll/generate */}
       </div>
     );
   }
@@ -176,6 +194,9 @@ export default function GrannkontrollPage({ params }: { params: { id: string } }
           </div>
         ))}
       </div>
+
+      {/* TODO: knapp för att generera PDF-export i samma format som
+          Grannkontrollprotokoll_v2.docx, samt knapp för att markera protokollet 'klar' */}
     </div>
   );
 }
