@@ -2,9 +2,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { getProjects, getCases } from "@/lib/supabase/queries";
-
 export const metadata: Metadata = { title: "Projekt" };
-
 const TYPE_ICON: Record<string, string> = {
   "VA-utredning": "🔍", "Besiktning": "🔎", "Rådgivning": "💬", "Tillstånd": "📋",
 };
@@ -14,23 +12,19 @@ const STATUS_CFG: Record<string, { bg: string; color: string; dot: string }> = {
   "Granskning": { bg: "#FDF0E4", color: "#B5620A", dot: "#B5620A" },
   "Avslutat":   { bg: "#E6F4EC", color: "#2D7A4F", dot: "#2D7A4F" },
 };
-
 export default async function ProjectsPage() {
   const [projects, cases] = await Promise.all([getProjects(), getCases()]);
-
   return (
-    <div className="p-9 max-w-5xl">
-      <div className="flex justify-between items-center mb-6">
+    <div className="p-4 sm:p-9 max-w-5xl">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 mb-6">
         <h1 className="page-title">Projekt</h1>
-        <Link href="/projects/new" className="btn-primary">+ Nytt projekt</Link>
+        <Link href="/projects/new" className="btn-primary self-start sm:self-auto">+ Nytt projekt</Link>
       </div>
-
       <div className="space-y-2.5">
         {projects.map(p => {
           const pCases  = cases.filter(c => c.project_id === p.id && c.status !== "Stängd");
           const cfg     = STATUS_CFG[p.status] ?? STATUS_CFG["Förfrågan"];
           const overdue = p.deadline && new Date(p.deadline) < new Date() && p.status !== "Avslutat";
-
           return (
             <Link key={p.id} href={`/projects/${p.id}`}
               className="card flex justify-between items-center gap-4 hover:shadow-md hover:-translate-y-px transition-all cursor-pointer block">
