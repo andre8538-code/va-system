@@ -104,7 +104,7 @@ export default function GrannkontrollPage({
         <h1 className="text-xl font-semibold">
           Grannkontrollprotokoll — {protokoll.initiativ_fastighet}
         </h1>
-        
+        <a
           href={`/api/grannkontroll/${protokoll.id}/pdf`}
           className="text-sm bg-[#1A1916] text-white px-3 py-1.5 rounded hover:bg-[#333] whitespace-nowrap"
         >
