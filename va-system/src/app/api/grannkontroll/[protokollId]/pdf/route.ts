@@ -53,8 +53,7 @@ export async function GET(
       "_"
     )}.pdf`;
 
-    return new NextResponse(buffer, {
-      status: 200,
+return new NextResponse(new Uint8Array(buffer), {      status: 200,
       headers: {
         "Content-Type": "application/pdf",
         "Content-Disposition": `attachment; filename="${filnamn}"`,
