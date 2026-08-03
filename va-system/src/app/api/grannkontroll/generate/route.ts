@@ -1,20 +1,30 @@
-// src/app/api/grannkontroll/[protokollId]/pdf/route.ts
+// src/app/api/grannkontroll/generate/route.ts
 //
-// GET /api/grannkontroll/[protokollId]/pdf
-// Hämtar protokoll + grannfastigheter från Supabase och returnerar en
-// färdig PDF-fil (inte en länk till en fil - PDF:en byggs live vid varje anrop).
+// POST body: { project_id, case_id?, initiativ_fastighet, omrade?, syfte?, skyddsavstand_m? }
 
 import { NextRequest, NextResponse } from "next/server";
-import { renderToBuffer } from "@react-pdf/renderer";
 import { createClient } from "@/lib/supabase/server";
-import { GrannkontrollPDF } from "@/lib/pdf/GrannkontrollPDF";
+import { hamtaFastighetGeometri, hittaGrannarInomRadie } from "@/lib/lantmateriet";
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ protokollId: string }> }
-) {
+export async function POST(request: NextRequest) {
   try {
-    const { protokollId } = await params;
+    const body = await request.json();
+    const {
+      project_id,
+      case_id,
+      initiativ_fastighet,
+      omrade,
+      syfte,
+      skyddsavstand_m = 200,
+    } = body;
+
+    if (!project_id || !initiativ_fastighet) {
+      return NextResponse.json(
+        { error: "project_id och initiativ_fastighet krävs" },
+        { status: 400 }
+      );
+    }
+
     const supabase = await createClient();
 
     const {
@@ -24,44 +34,54 @@ export async function GET(
       return NextResponse.json({ error: "Ej inloggad" }, { status: 401 });
     }
 
+    const fastighet = await hamtaFastighetGeometri(initiativ_fastighet);
+    const grannar = await hittaGrannarInomRadie(fastighet, skyddsavstand_m);
+
     const { data: protokoll, error: protokollError } = await supabase
       .from("grannkontroll_protokoll")
-      .select("*")
-      .eq("id", protokollId)
+      .insert({
+        project_id,
+        case_id: case_id ?? null,
+        initiativ_fastighet,
+        omrade: omrade ?? null,
+        syfte: syfte ?? null,
+        skyddsavstand_m,
+        center_lat: fastighet.centroid.lat,
+        center_lng: fastighet.centroid.lng,
+        status: "pågående",
+        created_by: user.id,
+      })
+      .select()
       .single();
 
-    if (protokollError || !protokoll) {
-      return NextResponse.json({ error: "Protokoll hittades inte" }, { status: 404 });
+    if (protokollError) {
+      return NextResponse.json({ error: protokollError.message }, { status: 500 });
     }
 
-    const { data: grannar, error: grannarError } = await supabase
-      .from("grannkontroll_fastighet")
-      .select("*")
-      .eq("protokoll_id", protokollId)
-      .order("fastighetsbeteckning");
+    if (grannar.length > 0) {
+      const rows = grannar.map((g) => ({
+        protokoll_id: protokoll.id,
+        fastighetsbeteckning: g.beteckning,
+        avstand_m: g.avstand_m,
+        svar_erhallet: false,
+        lage_markerat_karta: false,
+      }));
 
-    if (grannarError) {
-      return NextResponse.json({ error: grannarError.message }, { status: 500 });
+      const { error: fastigheterError } = await supabase
+        .from("grannkontroll_fastighet")
+        .insert(rows);
+
+      if (fastigheterError) {
+        return NextResponse.json({ error: fastigheterError.message }, { status: 500 });
+      }
     }
 
-    const buffer = await renderToBuffer(
-      GrannkontrollPDF({ protokoll, grannar: grannar ?? [] })
-    );
-
-    const filnamn = `Grannkontrollprotokoll_${protokoll.initiativ_fastighet.replace(
-      /[^a-zA-Z0-9]/g,
-      "_"
-    )}.pdf`;
-
-    return new NextResponse(buffer, {
-      status: 200,
-      headers: {
-        "Content-Type": "application/pdf",
-        "Content-Disposition": `attachment; filename="${filnamn}"`,
-      },
+    return NextResponse.json({
+      protokoll,
+      antal_grannar: grannar.length,
     });
   } catch (err) {
-    console.error("PDF-generering misslyckades:", err);
+    console.error("Grannkontroll-generering misslyckades:", err);
     const message = err instanceof Error ? err.message : "Okänt fel";
     return NextResponse.json({ error: message }, { status: 500 });
   }
