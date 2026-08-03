@@ -1,31 +1,22 @@
-// src/app/api/grannkontroll/generate/route.ts
+// src/app/api/grannkontroll/[protokollId]/pdf/route.ts
 //
-// POST body: { project_id, case_id?, initiativ_fastighet, omrade?, syfte?, skyddsavstand_m? }
+// GET /api/grannkontroll/[protokollId]/pdf
+// Hämtar protokoll + grannfastigheter från Supabase och returnerar en
+// färdig PDF-fil (inte en länk till en fil - PDF:en byggs live vid varje anrop).
 
 import { NextRequest, NextResponse } from "next/server";
+import { renderToBuffer } from "@react-pdf/renderer";
 import { createClient } from "@/lib/supabase/server";
-import { hamtaFastighetGeometri, hittaGrannarInomRadie } from "@/lib/lantmateriet";
+import { GrannkontrollPDF } from "@/lib/pdf/GrannkontrollPDF";
 
-export async function POST(request: NextRequest) {
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ protokollId: string }> }
+) {
   try {
-    const body = await request.json();
-    const {
-      project_id,
-      case_id,
-      initiativ_fastighet,
-      omrade,
-      syfte,
-      skyddsavstand_m = 200,
-    } = body;
+    const { protokollId } = await params;
+    const supabase = await createClient();
 
-    if (!project_id || !initiativ_fastighet) {
-      return NextResponse.json(
-        { error: "project_id och initiativ_fastighet krävs" },
-        { status: 400 }
-      );
-    }
-
-const supabase = await createClient();
     const {
       data: { user },
     } = await supabase.auth.getUser();
@@ -33,54 +24,44 @@ const supabase = await createClient();
       return NextResponse.json({ error: "Ej inloggad" }, { status: 401 });
     }
 
-    const fastighet = await hamtaFastighetGeometri(initiativ_fastighet);
-    const grannar = await hittaGrannarInomRadie(fastighet, skyddsavstand_m);
-
     const { data: protokoll, error: protokollError } = await supabase
       .from("grannkontroll_protokoll")
-      .insert({
-        project_id,
-        case_id: case_id ?? null,
-        initiativ_fastighet,
-        omrade: omrade ?? null,
-        syfte: syfte ?? null,
-        skyddsavstand_m,
-        center_lat: fastighet.centroid.lat,
-        center_lng: fastighet.centroid.lng,
-        status: "pågående",
-        created_by: user.id,
-      })
-      .select()
+      .select("*")
+      .eq("id", protokollId)
       .single();
 
-    if (protokollError) {
-      return NextResponse.json({ error: protokollError.message }, { status: 500 });
+    if (protokollError || !protokoll) {
+      return NextResponse.json({ error: "Protokoll hittades inte" }, { status: 404 });
     }
 
-    if (grannar.length > 0) {
-      const rows = grannar.map((g) => ({
-        protokoll_id: protokoll.id,
-        fastighetsbeteckning: g.beteckning,
-        avstand_m: g.avstand_m,
-        svar_erhallet: false,
-        lage_markerat_karta: false,
-      }));
+    const { data: grannar, error: grannarError } = await supabase
+      .from("grannkontroll_fastighet")
+      .select("*")
+      .eq("protokoll_id", protokollId)
+      .order("fastighetsbeteckning");
 
-      const { error: fastigheterError } = await supabase
-        .from("grannkontroll_fastighet")
-        .insert(rows);
-
-      if (fastigheterError) {
-        return NextResponse.json({ error: fastigheterError.message }, { status: 500 });
-      }
+    if (grannarError) {
+      return NextResponse.json({ error: grannarError.message }, { status: 500 });
     }
 
-    return NextResponse.json({
-      protokoll,
-      antal_grannar: grannar.length,
+    const buffer = await renderToBuffer(
+      GrannkontrollPDF({ protokoll, grannar: grannar ?? [] })
+    );
+
+    const filnamn = `Grannkontrollprotokoll_${protokoll.initiativ_fastighet.replace(
+      /[^a-zA-Z0-9]/g,
+      "_"
+    )}.pdf`;
+
+    return new NextResponse(buffer, {
+      status: 200,
+      headers: {
+        "Content-Type": "application/pdf",
+        "Content-Disposition": `attachment; filename="${filnamn}"`,
+      },
     });
   } catch (err) {
-    console.error("Grannkontroll-generering misslyckades:", err);
+    console.error("PDF-generering misslyckades:", err);
     const message = err instanceof Error ? err.message : "Okänt fel";
     return NextResponse.json({ error: message }, { status: 500 });
   }
