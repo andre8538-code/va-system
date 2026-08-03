@@ -100,9 +100,17 @@ export default function GrannkontrollPage({
 
   return (
     <div className="p-6 max-w-3xl mx-auto">
-      <h1 className="text-xl font-semibold">
-        Grannkontrollprotokoll — {protokoll.initiativ_fastighet}
-      </h1>
+      <div className="flex justify-between items-start gap-4 flex-wrap mb-1">
+        <h1 className="text-xl font-semibold">
+          Grannkontrollprotokoll — {protokoll.initiativ_fastighet}
+        </h1>
+        
+          href={`/api/grannkontroll/${protokoll.id}/pdf`}
+          className="text-sm bg-[#1A1916] text-white px-3 py-1.5 rounded hover:bg-[#333] whitespace-nowrap"
+        >
+          📄 Ladda ner PDF
+        </a>
+      </div>
       <p className="text-gray-600 mb-1">{protokoll.omrade}</p>
       <p className="text-sm text-gray-500 mb-6">
         Skyddsavstånd {protokoll.skyddsavstand_m} m · {kontaktade} av {grannar.length}{" "}
@@ -195,8 +203,7 @@ export default function GrannkontrollPage({
         ))}
       </div>
 
-      {/* TODO: knapp för att generera PDF-export i samma format som
-          Grannkontrollprotokoll_v2.docx, samt knapp för att markera protokollet 'klar' */}
+      {/* TODO: knapp för att markera protokollet 'klar' */}
     </div>
   );
 }
