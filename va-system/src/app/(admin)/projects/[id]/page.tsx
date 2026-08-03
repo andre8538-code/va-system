@@ -21,7 +21,15 @@ export default async function ProjectPage({ params }: PageProps) {
   const remove = deleteProjectAction.bind(null, project.id);
   return (
     <div className="p-9 max-w-5xl">
-      <h1 className="page-title">{project.name}</h1>
+      <div className="flex justify-between items-center flex-wrap gap-3 mb-2">
+     <h1 className="page-title">{project.name}</h1>
+     <Link
+       href={`/projects/${project.id}/grannkontroll`}
+       className="text-sm border border-[#1A1916] px-3 py-1.5 rounded hover:bg-[#1A1916] hover:text-white transition-colors whitespace-nowrap"
+     >
+       🏡 Grannkontroll
+     </Link>
+   </div>
       <form action={update} className="card space-y-5">
         <Field label="Namn"><TextInput name="name" defaultValue={project.name} required /></Field>
         <SubmitButton label="Spara" />
