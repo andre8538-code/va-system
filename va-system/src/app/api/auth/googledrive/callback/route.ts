@@ -11,29 +11,23 @@ export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
   const code = searchParams.get("code");
   const error = searchParams.get("error");
-
   const appUrl = process.env.NEXT_PUBLIC_APP_URL;
 
   if (error) {
-    return NextResponse.redirect(
-      `${appUrl}/documents?googledrive_error=${encodeURIComponent(error)}`
-    );
+    return NextResponse.redirect(`${appUrl}/documents?error=${encodeURIComponent(error)}`);
   }
-
   if (!code) {
-    return NextResponse.redirect(`${appUrl}/documents?googledrive_error=missing_code`);
+    return NextResponse.redirect(`${appUrl}/documents?error=missing_code`);
   }
 
   try {
     const tokens = await exchangeCodeForTokens(code);
 
     if (!tokens.refresh_token) {
-      // Google ger bara refresh_token vid FÖRSTA godkännandet (eller om
-      // prompt=consent tvingar fram det igen). Om den saknas: användaren
-      // behöver återkalla appens åtkomst i sitt Google-konto och prova igen.
-      return NextResponse.redirect(
-        `${appUrl}/documents?googledrive_error=no_refresh_token`
-      );
+      // Google ger bara refresh_token vid FÖRSTA godkännandet. Om den saknas
+      // (t.ex. vid omanslutning): återkalla appens åtkomst i Google-kontot
+      // (myaccount.google.com/permissions) och anslut på nytt.
+      return NextResponse.redirect(`${appUrl}/documents?error=no_refresh_token`);
     }
 
     const supabase = await createClient();
@@ -44,13 +38,10 @@ export async function GET(request: NextRequest) {
         { onConflict: "key" }
       );
 
-    return NextResponse.redirect(`${appUrl}/documents?googledrive_connected=1`);
+    return NextResponse.redirect(`${appUrl}/documents?connected=1`);
   } catch (err) {
     console.error("Google Drive OAuth-callback misslyckades:", err);
     const message = err instanceof Error ? err.message : "Okänt fel";
-    return NextResponse.redirect(
-      `${appUrl}/documents?googledrive_error=${encodeURIComponent(message)}`
-    );
+    return NextResponse.redirect(`${appUrl}/documents?error=${encodeURIComponent(message)}`);
   }
 }
-
