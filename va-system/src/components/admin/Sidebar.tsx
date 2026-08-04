@@ -5,12 +5,14 @@ import { useState } from "react";
 export default function Sidebar() {
   const [open, setOpen] = useState(false);
 
-  const links = [
-    { href: "/dashboard", label: "Dashboard" },
-    { href: "/projects", label: "Projekt" },
-    { href: "/cases", label: "Ärenden" },
-    { href: "/contacts", label: "Kontakter" },
-  ];
+ const links = [
+     { href: "/dashboard", label: "Dashboard" },
+     { href: "/projects", label: "Projekt" },
+     { href: "/cases", label: "Ärenden" },
+     { href: "/contacts", label: "Kontakter" },
+     { href: "/documents", label: "☁ OneDrive" },
+     { href: "/email", label: "✉ E-post" },
+   ];
 
   return (
     <>
