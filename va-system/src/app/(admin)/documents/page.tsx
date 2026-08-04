@@ -3,10 +3,10 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { getProjects } from "@/lib/supabase/queries";
-import { getGraphToken, listProjectFiles, getAuthUrl } from "@/lib/onedrive";
-import OneDriveUploader from "./OneDriveUploader";
+import { getGraphToken, listProjectFiles, getAuthUrl } from "@/lib/googledrive";
+import GoogleDriveUploader from "./GoogleDriveUploader";
 
-export const metadata: Metadata = { title: "OneDrive" };
+export const metadata: Metadata = { title: "Google Drive" };
 
 const FILE_ICON: Record<string, string> = {
   "application/pdf": "📄",
@@ -31,13 +31,13 @@ export default async function DocumentsPage({
   const sb = await createClient();
   const [projects, { data: setting }] = await Promise.all([
     getProjects(),
-    sb.from("settings").select("value").eq("key", "onedrive_refresh_token").single(),
+    sb.from("settings").select("value").eq("key", "googledrive_refresh_token").single(),
   ]);
 
   const isConnected = !!setting?.value;
   const authUrl     = getAuthUrl("documents");
-const selProject = project ? projects.find(p => p.id === project) : null;
-  // Fetch OneDrive files for selected project
+  const selProject = project ? projects.find(p => p.id === project) : null;
+  // Fetch Google Drive files for selected project
   let odFiles: Awaited<ReturnType<typeof listProjectFiles>> = [];
   if (isConnected && selProject) {
     try {
@@ -49,37 +49,37 @@ const selProject = project ? projects.find(p => p.id === project) : null;
   return (
     <div className="p-9 max-w-5xl">
       <div className="flex justify-between items-center mb-6">
-        <h1 className="page-title">OneDrive – Dokument</h1>
+        <h1 className="page-title">Google Drive – Dokument</h1>
         {isConnected ? (
           <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[#E8EEF7] border border-[#1E4D8C]/15">
             <span className="text-sm">☁</span>
-            <span className="text-sm font-semibold text-[#1E4D8C]">Microsoft 365 ansluten</span>
+            <span className="text-sm font-semibold text-[#1E4D8C]">Google Drive anslutet</span>
           </div>
         ) : (
-          <a href={authUrl} className="btn-primary">Anslut OneDrive →</a>
+          <a href={authUrl} className="btn-primary">Anslut Google Drive →</a>
         )}
       </div>
 
       {connected && (
         <div className="bg-[#E6F4EC] border border-[#2D7A4F]/20 rounded-xl px-4 py-3 mb-5 text-sm text-[#2D7A4F] font-medium">
-          ✓ OneDrive anslutet!
+          ✓ Google Drive anslutet!
         </div>
       )}
       {error && (
         <div className="bg-[#FAE8E8] border border-[#B52A2A]/20 rounded-xl px-4 py-3 mb-5 text-sm text-[#B52A2A]">
-          Kunde inte ansluta OneDrive. Försök igen.
+          Kunde inte ansluta Google Drive. Försök igen.
         </div>
       )}
 
       {!isConnected ? (
         <div className="card text-center py-16">
           <p className="text-5xl mb-4">☁</p>
-          <h2 className="font-display text-xl font-bold text-[#1A1916] mb-2">Anslut OneDrive</h2>
+          <h2 className="font-display text-xl font-bold text-[#1A1916] mb-2">Anslut Google Drive</h2>
           <p className="text-sm text-[#7A7870] mb-6 max-w-sm mx-auto">
-            Koppla ditt Microsoft 365-konto för att hantera projektdokument direkt i VA-systemet.
-            Filer lagras automatiskt i <code className="bg-[#F4F3EF] px-1.5 py-0.5 rounded text-xs">/VA-Projekt/[projektnamn]/</code> i din OneDrive.
+            Koppla ditt Google-konto för att hantera projektdokument direkt i VA-systemet.
+            Filer lagras automatiskt i <code className="bg-[#F4F3EF] px-1.5 py-0.5 rounded text-xs">/VA-Projekt/[projektnamn]/</code> i din Google Drive.
           </p>
-          <a href={authUrl} className="btn-primary inline-block">Anslut Microsoft 365 →</a>
+          <a href={authUrl} className="btn-primary inline-block">Anslut Google Drive →</a>
         </div>
       ) : (
         <div className="grid grid-cols-4 gap-3">
@@ -111,13 +111,13 @@ const selProject = project ? projects.find(p => p.id === project) : null;
                   <div>
                     <h2 className="font-bold text-[#1A1916]">{selProject.name}</h2>
                     <p className="text-xs text-[#7A7870] mt-0.5">
-                      OneDrive: <code className="bg-[#F4F3EF] px-1 py-0.5 rounded">/VA-Projekt/{selProject.name}/</code>
+                      Google Drive: <code className="bg-[#F4F3EF] px-1 py-0.5 rounded">/VA-Projekt/{selProject.name}/</code>
                     </p>
                   </div>
                 </div>
 
                 {/* Upload */}
-                <OneDriveUploader projectId={selProject.id} projectName={selProject.name} />
+                <GoogleDriveUploader projectId={selProject.id} projectName={selProject.name} />
 
                 {/* Files */}
                 {odFiles.length === 0 ? (
