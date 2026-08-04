@@ -190,4 +190,3 @@ export async function uploadDocument(
 
   return res.json() as Promise<{ id: string; webViewLink: string }>;
 }
-
