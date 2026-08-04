@@ -1,16 +1,12 @@
 // src/lib/googledrive.ts
 //
-// Google Drive-integration. Ersätter Microsoft Graph-varianten (onedrive.ts)
-// eftersom Azure krävde en betald licens för personliga konton, medan Google
-// Cloud OAuth är gratis för den här typen av koppling.
+// Google Drive-integration - ersätter Microsoft Graph-varianten (onedrive.ts).
+// Funktionsnamnen matchar medvetet onedrive.ts (getGraphToken, listProjectFiles,
+// getAuthUrl, uploadFileToProject) så att de filer som använder biblioteket bara
+// behöver byta importrad, inte sin egen logik.
 //
-// Samma arkitektur som OneDrive-varianten skulle haft:
-// - OAuth Authorization Code Grant, refresh token sparas i `settings`-tabellen
-//   (key = 'googledrive_refresh_token')
-// - Mappstruktur: /VA-Projekt/{projektnamn}/{timestamp}_{filnamn}
-// - Vid varje API-anrop hämtas en ny access token via refresh token
-
-import { createClient } from "@/lib/supabase/server";
+// Mappstruktur i Drive: /VA-Projekt/{projektnamn}/{timestamp}_{filnamn}
+// Refresh token sparas i settings-tabellen (key='googledrive_refresh_token')
 
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID!;
 const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET!;
@@ -18,21 +14,33 @@ const REDIRECT_URI = `${process.env.NEXT_PUBLIC_APP_URL}/api/auth/googledrive/ca
 
 const ROOT_FOLDER_NAME = "VA-Projekt";
 
+export type DriveFile = {
+  id: string;
+  name: string;
+  mimeType: string;
+  size: number;
+  lastModified: string;
+  webUrl: string;
+  downloadUrl?: string;
+  isFolder: boolean;
+};
+
 // ---------- OAuth: steg 1, generera inloggningslänk ----------
 
-export function getGoogleAuthUrl() {
+export function getAuthUrl(state: string) {
   const params = new URLSearchParams({
     client_id: GOOGLE_CLIENT_ID,
     redirect_uri: REDIRECT_URI,
     response_type: "code",
     scope: "https://www.googleapis.com/auth/drive.file",
     access_type: "offline", // krävs för att få tillbaka en refresh_token
-    prompt: "consent", // tvingar fram refresh_token varje gång (annars ges den bara första gången)
+    prompt: "consent", // tvingar fram refresh_token varje gång
+    state,
   });
   return `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
 }
 
-// ---------- OAuth: steg 2, byt "code" mot tokens ----------
+// ---------- OAuth: steg 2, byt "code" mot tokens (körs i callback-rutten) ----------
 
 export async function exchangeCodeForTokens(code: string) {
   const res = await fetch("https://oauth2.googleapis.com/token", {
@@ -48,8 +56,7 @@ export async function exchangeCodeForTokens(code: string) {
   });
 
   if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`Kunde inte hämta tokens från Google: ${text}`);
+    throw new Error(`Kunde inte hämta tokens från Google: ${await res.text()}`);
   }
 
   return res.json() as Promise<{
@@ -59,27 +66,14 @@ export async function exchangeCodeForTokens(code: string) {
   }>;
 }
 
-// ---------- Hämta en färsk access token via sparad refresh token ----------
+// ---------- Byt en sparad refresh token mot en färsk access token ----------
 
-async function getAccessToken(): Promise<string> {
-  const supabase = await createClient();
-  const { data: setting } = await supabase
-    .from("settings")
-    .select("value")
-    .eq("key", "googledrive_refresh_token")
-    .maybeSingle();
-
-  if (!setting?.value) {
-    throw new Error(
-      "Google Drive är inte anslutet ännu. Gå till Dokument-sidan och klicka 'Anslut Google Drive'."
-    );
-  }
-
+export async function getGraphToken(refreshToken: string): Promise<string> {
   const res = await fetch("https://oauth2.googleapis.com/token", {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({
-      refresh_token: setting.value,
+      refresh_token: refreshToken,
       client_id: GOOGLE_CLIENT_ID,
       client_secret: GOOGLE_CLIENT_SECRET,
       grant_type: "refresh_token",
@@ -87,8 +81,7 @@ async function getAccessToken(): Promise<string> {
   });
 
   if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`Kunde inte förnya access token: ${text}`);
+    throw new Error(`Kunde inte förnya access token: ${await res.text()}`);
   }
 
   const data = await res.json();
@@ -102,9 +95,9 @@ async function findOrCreateFolder(
   parentId: string | null,
   accessToken: string
 ): Promise<string> {
-  const parentQuery = parentId ? ` and '${parentId}' in parents` : " and 'root' in parents";
+  const parentClause = parentId ? `'${parentId}' in parents` : "'root' in parents";
   const q = encodeURIComponent(
-    `name='${name.replace(/'/g, "\\'")}' and mimeType='application/vnd.google-apps.folder' and trashed=false${parentQuery}`
+    `name='${name.replace(/'/g, "\\'")}' and mimeType='application/vnd.google-apps.folder' and trashed=false and ${parentClause}`
   );
 
   const searchRes = await fetch(
@@ -113,11 +106,10 @@ async function findOrCreateFolder(
   );
   const searchData = await searchRes.json();
 
-  if (searchData.files && searchData.files.length > 0) {
+  if (searchData.files?.length > 0) {
     return searchData.files[0].id;
   }
 
-  // Mappen finns inte - skapa den
   const createRes = await fetch("https://www.googleapis.com/drive/v3/files", {
     method: "POST",
     headers: {
@@ -135,39 +127,71 @@ async function findOrCreateFolder(
   return createData.id;
 }
 
-export async function getOrCreateProjectFolder(projectName: string): Promise<string> {
-  const accessToken = await getAccessToken();
+async function getProjectFolderId(accessToken: string, projectName: string): Promise<string> {
   const rootId = await findOrCreateFolder(ROOT_FOLDER_NAME, null, accessToken);
-  const projectFolderId = await findOrCreateFolder(projectName, rootId, accessToken);
-  return projectFolderId;
+  return findOrCreateFolder(projectName, rootId, accessToken);
+}
+
+// ---------- Lista filer i ett projekts mapp ----------
+
+export async function listProjectFiles(
+  accessToken: string,
+  projectName: string
+): Promise<DriveFile[]> {
+  const folderId = await getProjectFolderId(accessToken, projectName);
+
+  const q = encodeURIComponent(`'${folderId}' in parents and trashed=false`);
+  const fields = encodeURIComponent(
+    "files(id,name,mimeType,size,modifiedTime,webViewLink,webContentLink)"
+  );
+
+  const res = await fetch(
+    `https://www.googleapis.com/drive/v3/files?q=${q}&fields=${fields}&orderBy=modifiedTime desc`,
+    { headers: { Authorization: `Bearer ${accessToken}` } }
+  );
+
+  if (!res.ok) {
+    throw new Error(`Kunde inte lista filer: ${await res.text()}`);
+  }
+
+  const data = await res.json();
+
+  return (data.files ?? []).map((f: any) => ({
+    id: f.id,
+    name: f.name,
+    mimeType: f.mimeType,
+    size: f.size ? parseInt(f.size, 10) : 0,
+    lastModified: f.modifiedTime
+      ? new Date(f.modifiedTime).toLocaleDateString("sv-SE")
+      : "",
+    webUrl: f.webViewLink,
+    downloadUrl: f.webContentLink,
+    isFolder: f.mimeType === "application/vnd.google-apps.folder",
+  }));
 }
 
 // ---------- Ladda upp en fil ----------
 
-export async function uploadDocument(
+export async function uploadFileToProject(
+  accessToken: string,
   projectName: string,
   filename: string,
-  fileBuffer: Buffer,
+  fileBuffer: ArrayBuffer,
   mimeType: string
-) {
-  const accessToken = await getAccessToken();
-  const folderId = await getOrCreateProjectFolder(projectName);
-
+): Promise<{ id: string; webUrl: string }> {
+  const folderId = await getProjectFolderId(accessToken, projectName);
   const timestampedName = `${Date.now()}_${filename}`;
 
-  const metadata = {
-    name: timestampedName,
-    parents: [folderId],
-  };
-
+  const metadata = { name: timestampedName, parents: [folderId] };
   const boundary = "va_system_boundary";
+
   const multipartBody = Buffer.concat([
     Buffer.from(
       `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(
         metadata
       )}\r\n--${boundary}\r\nContent-Type: ${mimeType}\r\n\r\n`
     ),
-    fileBuffer,
+    Buffer.from(fileBuffer),
     Buffer.from(`\r\n--${boundary}--`),
   ]);
 
@@ -184,9 +208,9 @@ export async function uploadDocument(
   );
 
   if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`Uppladdning till Google Drive misslyckades: ${text}`);
+    throw new Error(`Uppladdning till Google Drive misslyckades: ${await res.text()}`);
   }
 
-  return res.json() as Promise<{ id: string; webViewLink: string }>;
+  const data = await res.json();
+  return { id: data.id, webUrl: data.webViewLink };
 }
