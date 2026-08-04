@@ -31,12 +31,30 @@ export async function GET(request: NextRequest) {
     }
 
     const supabase = await createClient();
-    await supabase
-      .from("settings")
-      .upsert(
-        { key: "googledrive_refresh_token", value: tokens.refresh_token },
-        { onConflict: "key" }
-      );
+
+   const {
+     data: { user },
+   } = await supabase.auth.getUser();
+
+   const { error: saveError } = await supabase
+     .from("settings")
+     .upsert(
+       {
+         key: "googledrive_refresh_token",
+         value: tokens.refresh_token,
+         user_id: user?.id,
+       },
+       { onConflict: "key" }
+     );
+
+   if (saveError) {
+     console.error("Kunde inte spara Google Drive-token:", saveError);
+     return NextResponse.redirect(
+       `${appUrl}/documents?error=${encodeURIComponent(saveError.message)}`
+     );
+   }
+
+   return NextResponse.redirect(`${appUrl}/documents?connected=1`);
 
     return NextResponse.redirect(`${appUrl}/documents?connected=1`);
   } catch (err) {
