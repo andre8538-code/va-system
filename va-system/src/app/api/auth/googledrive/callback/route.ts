@@ -44,7 +44,7 @@ export async function GET(request: NextRequest) {
          value: tokens.refresh_token,
          user_id: user?.id,
        },
-       { onConflict: "key" }
+{ onConflict: "user_id,key" }
      );
 
    if (saveError) {
