@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getProjects } from "@/lib/supabase/queries";
 import { getGraphToken, listProjectFiles, getAuthUrl } from "@/lib/googledrive";
 import GoogleDriveUploader from "./GoogleDriveUploader";
+import DeleteFileButton from "./DeleteFileButton";
 
 export const metadata: Metadata = { title: "Google Drive" };
 
@@ -144,6 +145,7 @@ export default async function DocumentsPage({
                             <a href={f.downloadUrl} download={f.name}
                               className="text-xs btn-secondary px-3 py-1.5">↓</a>
                           )}
+                          <DeleteFileButton fileId={f.id} fileName={f.name} />
                         </div>
                       </div>
                     ))}
