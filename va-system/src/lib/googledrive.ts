@@ -169,7 +169,22 @@ export async function listProjectFiles(
     isFolder: f.mimeType === "application/vnd.google-apps.folder",
   }));
 }
+// ---------- Flytta en fil till papperskorgen (inte permanent radering) ----------
 
+export async function trashFile(accessToken: string, fileId: string): Promise<void> {
+  const res = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}`, {
+    method: "PATCH",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ trashed: true }),
+  });
+
+  if (!res.ok) {
+    throw new Error(`Kunde inte radera filen: ${await res.text()}`);
+  }
+}
 // ---------- Ladda upp en fil ----------
 
 export async function uploadFileToProject(
