@@ -6,7 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getProjects } from "@/lib/supabase/queries";
 import { updateContactAction, deleteContactAction, generateInviteAction } from "@/lib/actions";
 import { Field, TextInput, TextArea, Select, FormGrid, SubmitButton } from "@/components/ui/FormFields";
-import InviteButton from "./InviteButton";
+import InviteButton from "./InviteButton"; import DeleteContactButton from "./DeleteContactButton";
 
 export const metadata: Metadata = { title: "Kontakt" };
 
@@ -85,11 +85,7 @@ export default async function ContactPage({ params }: { params: Promise<{ id: st
         <div className="flex justify-between items-center border-t border-[#E8E5DF] pt-4">
           <Link href="/contacts" className="btn-secondary">Tillbaka</Link>
           <div className="flex gap-3 items-center">
-            <form action={remove}>
-              <button type="submit"
-                onClick={e => { if (!confirm("Ta bort kontakten?")) e.preventDefault(); }}
-                className="text-sm text-[#B52A2A] hover:underline px-2">Ta bort</button>
-            </form>
+          <DeleteContactButton action={remove} />
             <SubmitButton label="Spara ändringar" />
           </div>
         </div>
