@@ -6,7 +6,9 @@ import { createClient } from "@/lib/supabase/server";
 import { getProjects } from "@/lib/supabase/queries";
 import { updateContactAction, deleteContactAction, generateInviteAction } from "@/lib/actions";
 import { Field, TextInput, TextArea, Select, FormGrid, SubmitButton } from "@/components/ui/FormFields";
-import InviteButton from "./InviteButton"; import DeleteContactButton from "./DeleteContactButton";
+import InviteButton from "./InviteButton";
+import DeleteContactButton from "./DeleteContactButton";
+import LinkProjectForm from "./LinkProjectForm";
 
 export const metadata: Metadata = { title: "Kontakt" };
 
@@ -85,7 +87,7 @@ export default async function ContactPage({ params }: { params: Promise<{ id: st
         <div className="flex justify-between items-center border-t border-[#E8E5DF] pt-4">
           <Link href="/contacts" className="btn-secondary">Tillbaka</Link>
           <div className="flex gap-3 items-center">
-          <DeleteContactButton action={remove} />
+            <DeleteContactButton action={remove} />
             <SubmitButton label="Spara ändringar" />
           </div>
         </div>
@@ -95,7 +97,6 @@ export default async function ContactPage({ params }: { params: Promise<{ id: st
       <div className="card mb-5">
         <div className="flex justify-between items-center mb-4">
           <p className="section-title">Projekt ({linkedProjects.length})</p>
-          <Link href={`/contacts/new?project=`} className="text-xs text-[#1E4D8C] hover:underline">+ Koppla projekt</Link>
         </div>
         {linkedProjects.length === 0
           ? <p className="text-sm text-[#7A7870]">Inte kopplad till något projekt.</p>
@@ -106,6 +107,10 @@ export default async function ContactPage({ params }: { params: Promise<{ id: st
                 <span className="text-xs text-[#7A7870]">{p.status}</span>
               </Link>
             ))}
+        <LinkProjectForm
+          contactId={contact.id}
+          unlinkedProjects={projects.filter(p => !linkedProjectIds.has(p.id))}
+        />
       </div>
 
       {/* Portal access */}
